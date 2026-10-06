@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bills &amp; subscriptions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#14213D; --muted:#5B677A; --line:#D5DBE3;
+  --accent:#1D5C8C; --accent-ink:#FFFFFF; --ok:#0F7B6C; --warn:#A86400; --bad:#B3261E;
+  --chip-ok:#DDF1EC; --chip-warn:#FBEBD0; --chip-bad:#F8DEDB; --chip-neutral:#E4E9EF;
+  --g1:#1D5C8C; --g2:#6B4FA0; --g3:#0F7B6C; --g4:#A86400;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1620; --surface:#16212D; --ink:#E6ECF3; --muted:#9AA8B8; --line:#2A3846;
+    --accent:#6FB0E3; --accent-ink:#0E1620; --ok:#5CC9B4; --warn:#E6AA4E; --bad:#F08A80;
+    --chip-ok:#173A35; --chip-warn:#3D2E14; --chip-bad:#45201D; --chip-neutral:#22303E;
+    --g1:#6FB0E3; --g2:#B49CE6; --g3:#5CC9B4; --g4:#E6AA4E;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1620; --surface:#16212D; --ink:#E6ECF3; --muted:#9AA8B8; --line:#2A3846;
+  --accent:#6FB0E3; --accent-ink:#0E1620; --ok:#5CC9B4; --warn:#E6AA4E; --bad:#F08A80;
+  --chip-ok:#173A35; --chip-warn:#3D2E14; --chip-bad:#45201D; --chip-neutral:#22303E;
+  --g1:#6FB0E3; --g2:#B49CE6; --g3:#5CC9B4; --g4:#E6AA4E;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:500 15.5px/1.55 "Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased}
+h1,h2,.big{font-family:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.025em}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 20px 64px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:clamp(30px,5.5vw,44px);line-height:1.05;margin:0;font-weight:800}
+.sub{color:var(--muted);margin:6px 0 0}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:13px;border-radius:8px}
+
+/* Hero: the month at a glance */
+.glance{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:28px}
+.glance > div{background:var(--surface);padding:18px 20px}
+.glance .lbl{color:var(--muted);font-size:13px}
+.glance .big{font-size:clamp(32px,6.5vw,52px);font-weight:800;line-height:1.1;margin-top:2px}
+.glance .mid{font-size:20px;font-weight:700;letter-spacing:-.01em;margin-top:4px;line-height:1.3}
+.glance .note{color:var(--muted);font-size:13px;margin-top:4px}
+@media (max-width:720px){.glance{grid-template-columns:1fr 1fr}.glance > div:first-child{grid-column:1/-1}}
+
+/* Groups */
+section.group{margin-bottom:30px}
+.ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:2px solid var(--gc,var(--ink));padding-bottom:8px;margin-bottom:4px}
+.ghead h2{margin:0;font-size:21px;font-weight:800;display:flex;align-items:center;gap:10px}
+.ghead h2::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--gc,var(--ink))}
+.ghead .tot{color:var(--muted);font-size:14px}
+.ghead .tot b{color:var(--ink);font-weight:600}
+
+.table{width:100%;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th{text-align:left;font-size:12.5px;font-weight:600;color:var(--muted);padding:10px 10px 6px}
+td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.item{cursor:pointer}
+tr.item:hover td{background:color-mix(in srgb,var(--surface) 60%,transparent)}
+td .name{font-weight:700;font-size:16px}
+td .meta{color:var(--muted);font-size:13px}
+td.amt{text-align:right;white-space:nowrap}
+th.amt{text-align:right}
+.chip{display:inline-block;font-size:12.5px;font-weight:500;padding:2px 8px;border-radius:999px;background:var(--chip-neutral);white-space:nowrap}
+.chip.ok{background:var(--chip-ok);color:var(--ok)}
+.chip.warn{background:var(--chip-warn);color:var(--warn)}
+.chip.bad{background:var(--chip-bad);color:var(--bad)}
+.rise{display:block;margin-top:4px;font-size:12.5px;color:var(--warn)}
+.empty-val{color:var(--muted);font-style:italic}
+.addrow{background:none;border:0;color:var(--accent);font-weight:600;padding:10px;cursor:pointer}
+
+/* Mobile cards */
+@media (max-width:640px){
+  table{min-width:0}
+  thead{display:none}
+  tr.item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  tr.item td{border:0;padding:0;display:block}
+  tr.item td.amt{grid-column:2;grid-row:1}
+  tr.item td[data-l]::before{content:attr(data-l) ": ";color:var(--muted);font-size:13px}
+  tr.item td.c-name{grid-column:1;grid-row:1}
+  tr.item td:not(.c-name):not(.amt){grid-column:1/-1;font-size:14px}
+}
+
+.status{font-size:13px;color:var(--muted);margin-top:24px}
+
+/* Dialog */
+dialog{border:0;border-radius:16px;padding:0;width:min(560px,calc(100% - 24px));background:var(--surface);color:var(--ink);max-height:calc(100% - 24px)}
+dialog::backdrop{background:rgba(10,18,28,.55)}
+form.edit{padding:22px;display:grid;gap:14px}
+form.edit h2{margin:0;font-size:22px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:480px){.row{grid-template-columns:1fr}}
+label{display:grid;gap:5px;font-size:13.5px;font-weight:500}
+label small{font-weight:400;color:var(--muted)}
+input,select,textarea{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 10px;width:100%}
+textarea{min-height:60px;resize:vertical}
+fieldset{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;margin:0;display:grid;gap:12px}
+legend{font-weight:600;padding:0 6px;font-size:14px}
+.seg{display:flex;gap:6px}
+.seg label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;cursor:pointer;font-weight:500}
+.seg input{width:auto;margin:0}
+.toggle{display:flex;align-items:center;gap:8px;font-weight:600}
+.toggle input{width:auto}
+.preview{font-size:13.5px;color:var(--warn);background:var(--chip-warn);border-radius:9px;padding:8px 10px}
+.actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:4px}
+.actions .right{display:flex;gap:8px}
+[hidden]{display:none!important}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.masked{letter-spacing:.12em;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Bills &amp; subscriptions</h1>
+      <p class="sub">Click any row to edit it. Payment dates roll forward on their own.</p>
+    </div>
+    <div class="hbtns"><button class="btn ghost" id="privBtn" type="button" aria-pressed="false">Hide money details</button><button class="btn" id="addBtn" type="button">Add a bill</button></div>
+  </header>
+
+  <div class="glance" id="glance"></div>
+  <div id="groups"></div>
+  <p class="status" id="status">Loading your tracker…</p>
+</div>
+
+<dialog id="dlg">
+  <form class="edit" id="form" method="dialog">
+    <h2 id="formTitle">Edit</h2>
+    <label>Name<input name="name" required maxlength="60"></label>
+    <div class="row">
+      <label>Group
+        <select name="group" id="groupSel"></select>
+      </label>
+      <label>New group name <small>(only if “New group…”)</small><input name="newGroup" maxlength="40"></label>
+    </div>
+    <div class="row">
+      <label>Amount you pay now (£)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal"></label>
+      <label>How often
+        <select name="freq">
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label>Taken out from <small>e.g. Monzo, Barclaycard</small><input name="from" maxlength="40" list="accounts"></label>
+      <label>Next payment date<input name="nextDue" type="date"></label>
+    </div>
+    <datalist id="accounts"></datalist>
+
+    <fieldset>
+      <legend>Contract</legend>
+      <div class="seg">
+        <label><input type="radio" name="term" value="rolling"> Rolling</label>
+        <label><input type="radio" name="term" value="fixed"> Fixed end date</label>
+      </div>
+      <label id="endWrap">Contract ends / expires<input name="endDate" type="date"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Yearly price rise</legend>
+      <label class="toggle"><input type="checkbox" name="riseOn"> Price goes up every year</label>
+      <div id="riseWrap" class="row">
+        <label>Rise happens in
+          <select name="riseMonth"></select>
+        </label>
+        <label>Rise is
+          <select name="riseType">
+            <option value="fixed">A fixed £ amount</option>
+            <option value="percent">A percentage</option>
+          </select>
+        </label>
+        <label id="riseValLbl">Increase (£ per payment)<input name="riseValue" type="number" step="0.01" min="0" inputmode="decimal"></label>
+        <div class="preview" id="risePreview" style="align-self:end"></div>
+      </div>
+    </fieldset>
+
+    <label>Notes<textarea name="notes" maxlength="400"></textarea></label>
+
+    <div class="actions">
+      <button class="btn danger" type="button" id="delBtn">Delete</button>
+      <div class="right">
+        <button class="btn ghost" type="button" id="cancelBtn">Cancel</button>
+        <button class="btn" type="submit" id="saveBtn">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const GROUP_COLOURS=["var(--g1)","var(--g2)","var(--g3)","var(--g4)"];
+const LS_KEY="bills-tracker-v1";
+const gbp=new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"});
+const fmtDate=d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+
+function uid(){return Math.random().toString(36).slice(2,10)}
+function todayISO(){const d=new Date();return iso(d)}
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function parse(s){if(!s)return null;const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)}
+function today(){const d=new Date();d.setHours(0,0,0,0);return d}
+function daysBetween(a,b){return Math.round((b-a)/86400000)}
+
+// Starter list — nothing is saved until you change something.
+function starter(){
+  const mk=(name,group,freq,term,extra)=>Object.assign({id:uid(),name,group,amount:null,freq,from:"",nextDue:"",term,endDate:"",rise:{on:false,month:3,type:"fixed",value:null},priceDate:"",notes:""},extra||{});
+  return {
+    groups:["Entertainment","Software & security","Home bills"],
+    items:[
+      mk("Netflix","Entertainment","monthly","rolling"),
+      mk("NFL Game Pass","Entertainment","yearly","rolling"),
+      mk("Sky","Entertainment","monthly","fixed",{rise:{on:true,month:3,type:"fixed",value:null},notes:"Price rises every April — check your contract or Sky letter for the amount."}),
+      mk("Norton","Software & security","yearly","rolling",{notes:"Usually auto-renews at full price after year one."}),
+      mk("Adobe","Software & security","monthly","fixed",{notes:"Annual plan billed monthly has a cancellation fee before the end date."}),
+      mk("Council tax","Home bills","monthly","fixed"),
+      mk("Gas & electric","Home bills","monthly","rolling"),
+      mk("Water","Home bills","monthly","rolling")
+    ]
+  };
+}
+
+let state=null;
+let priv=false; try{priv=localStorage.getItem("bills-private")==="1"}catch(e){}
+const money=n=>priv?'<span class="masked">£••••</span>':gbp.format(n);
+let dbDoc=null, saveTimer=null, editingId=null;
+
+/* ---------- maths ---------- */
+function monthly(amount,freq){
+  if(amount==null||isNaN(amount))return 0;
+  return freq==="weekly"?amount*52/12:freq==="quarterly"?amount/3:freq==="yearly"?amount/12:amount;
+}
+function applyRise(amount,rise){
+  if(amount==null)return null;
+  const v=Number(rise.value)||0;
+  return rise.type==="percent"?amount*(1+v/100):amount+v;
+}
+// Rises take effect on the 1st of the rise month.
+function riseDatesBetween(from,to,month){
+  const out=[];
+  for(let y=from.getFullYear();y<=to.getFullYear();y++){
+    const d=new Date(y,month,1);
+    if(d>from&&d<=to)out.push(d);
+  }
+  return out;
+}
+function currentAmount(it){
+  if(it.amount==null)return null;
+  if(!it.rise||!it.rise.on||!it.priceDate)return it.amount;
+  let a=it.amount;
+  riseDatesBetween(parse(it.priceDate),today(),it.rise.month).forEach(()=>{a=applyRise(a,it.rise)});
+  return a;
+}
+function nextRise(it){
+  if(!it.rise||!it.rise.on)return null;
+  const t=today();
+  let d=new Date(t.getFullYear(),it.rise.month,1);
+  if(d<=t)d=new Date(t.getFullYear()+1,it.rise.month,1);
+  const cur=currentAmount(it);
+  return {date:d,amount:(cur==null||!it.rise.value)?null:applyRise(cur,it.rise)};
+}
+function stepDate(d,freq){
+  const n=new Date(d);
+  if(freq==="weekly")n.setDate(n.getDate()+7);
+  else if(freq==="monthly")n.setMonth(n.getMonth()+1);
+  else if(freq==="quarterly")n.setMonth(n.getMonth()+3);
+  else n.setFullYear(n.getFullYear()+1);
+  return n;
+}
+function nextDueDate(it){
+  const d0=parse(it.nextDue); if(!d0)return null;
+  let d=d0, t=today(), guard=0;
+  while(d<t&&guard++<600)d=stepDate(d,it.freq);
+  return d;
+}
+
+/* ---------- render ---------- */
+const $=s=>document.querySelector(s);
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+const FREQ={weekly:"a week",monthly:"a month",quarterly:"a quarter",yearly:"a year"};
+
+function dueChip(d){
+  if(!d)return '<span class="empty-val">Add a date</span>';
+  const n=daysBetween(today(),d);
+  const txt=n===0?"Today":n===1?"Tomorrow":n<=14?`In ${n} days`:fmtDate(d);
+  const cls=n<=3?"warn":"";
+  return `<span class="num">${n<=14?fmtDate(d)+"<br>":""}</span><span class="chip ${cls}">${txt}</span>`;
+}
+function termChip(it){
+  if(it.term!=="fixed")return '<span class="chip ok">Rolling</span>';
+  const e=parse(it.endDate);
+  if(!e)return '<span class="chip">Fixed term</span><div class="meta">Add an end date</div>';
+  const n=daysBetween(today(),e);
+  if(n<0)return `<span class="chip bad">Ended ${fmtDate(e)}</span><div class="meta">Out of contract — worth shopping around</div>`;
+  const cls=n<=60?"warn":"";
+  const left=n<=60?`${n} day${n===1?"":"s"} left`:`Ends ${fmtDate(e)}`;
+  return `<span class="chip ${cls}">${left}</span>${n<=60?`<div class="meta">Ends ${fmtDate(e)}</div>`:""}`;
+}
+
+function render(){
+  const items=state.items;
+  // glance
+  let mTotal=0, missing=0, soonest=null, ending=[];
+  items.forEach(it=>{
+    const a=currentAmount(it);
+    if(a==null)missing++; else mTotal+=monthly(a,it.freq);
+    const d=nextDueDate(it);
+    if(d&&(!soonest||d<soonest.d))soonest={d,it};
+    if(it.term==="fixed"&&it.endDate){const n=daysBetween(today(),parse(it.endDate));if(n>=0&&n<=60)ending.push(it)}
+  });
+  const nextTxt=soonest?`${esc(soonest.it.name)}<div class="note">${fmtDate(soonest.d)}${currentAmount(soonest.it)!=null?" — "+money(currentAmount(soonest.it)):""}</div>`:`<span class="empty-val">No dates yet</span>`;
+  $("#glance").innerHTML=`
+    <div><div class="lbl">Going out each month</div><div class="big num">${money(mTotal)}</div>
+      <div class="note num">${money(mTotal*12)} a year${missing?` · ${missing} without an amount yet`:""}</div></div>
+    <div><div class="lbl">Next payment</div><div class="mid">${nextTxt}</div></div>
+    <div><div class="lbl">Ending in the next 60 days</div><div class="mid">${ending.length?ending.map(i=>esc(i.name)).join(", "):"Nothing"}</div>
+      <div class="note">${ending.length?"Decide whether to renew or switch":"All contracts are clear"}</div></div>`;
+
+  // groups
+  const groups=[...state.groups];
+  items.forEach(it=>{if(!groups.includes(it.group))groups.push(it.group)});
+  $("#groups").innerHTML=groups.map((g,gi)=>{
+    const rows=items.filter(i=>i.group===g).sort((a,b)=>{
+      const da=nextDueDate(a),db=nextDueDate(b);
+      if(!da&&!db)return a.name.localeCompare(b.name); if(!da)return 1; if(!db)return -1; return da-db;
+    });
+    const sub=rows.reduce((s,i)=>s+monthly(currentAmount(i),i.freq),0);
+    const body=rows.map(it=>{
+      const a=currentAmount(it), nr=nextRise(it);
+      const riseLine=nr?`<span class="rise">${nr.amount!=null?`Goes up to ${money(nr.amount)} on ${fmtDate(nr.date)}`:`Rises every ${MONTHS[it.rise.month]} — add the increase`}</span>`:"";
+      return `<tr class="item" tabindex="0" data-id="${it.id}">
+        <td class="c-name"><div class="name">${esc(it.name)}</div>${it.notes?`<div class="meta">${esc(it.notes)}</div>`:""}</td>
+        <td class="amt num">${a!=null?`<b>${money(a)}</b><div class="meta">${FREQ[it.freq]}</div>`:'<span class="empty-val">Add amount</span>'}${riseLine}</td>
+        <td data-l="From">${it.from?(priv?'<span class="masked">••••</span>':esc(it.from)):'<span class="empty-val">—</span>'}</td>
+        <td data-l="Next payment">${dueChip(nextDueDate(it))}</td>
+        <td data-l="Contract">${termChip(it)}</td>
+      </tr>`;
+    }).join("");
+    return `<section class="group" style="--gc:${GROUP_COLOURS[gi%GROUP_COLOURS.length]}">
+      <div class="ghead"><h2>${esc(g)}</h2><div class="tot num"><b>${money(sub)}</b> a month</div></div>
+      <div class="table"><table>
+        <thead><tr><th>Name</th><th class="amt">Amount</th><th>Taken from</th><th>Next payment</th><th>Contract / expiry</th></tr></thead>
+        <tbody>${body||`<tr><td colspan="5" class="meta">Nothing in this group yet.</td></tr>`}</tbody>
+      </table></div>
+      <button class="addrow" type="button" data-add="${esc(g)}">Add to ${esc(g)}</button>
+    </section>`;
+  }).join("");
+
+  document.querySelectorAll("tr.item").forEach(tr=>{
+    tr.onclick=()=>openEdit(tr.dataset.id);
+    tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openEdit(tr.dataset.id)}};
+  });
+  document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>openEdit(null,b.dataset.add));
+}
+
+/* ---------- edit form ---------- */
+const form=$("#form"), dlg=$("#dlg");
+form.riseMonth.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join("");
+
+function fillGroups(sel){
+  const groups=[...new Set([...state.groups,...state.items.map(i=>i.group)])];
+  $("#groupSel").innerHTML=groups.map(g=>`<option>${esc(g)}</option>`).join("")+`<option value="__new">New group…</option>`;
+  $("#groupSel").value=sel||groups[0];
+  $("#accounts").innerHTML=[...new Set(state.items.map(i=>i.from).filter(Boolean))].map(a=>`<option value="${esc(a)}">`).join("");
+}
+function syncForm(){
+  const fixed=form.term.value==="fixed";
+  $("#endWrap").hidden=!fixed;
+  $("#riseWrap").hidden=!form.riseOn.checked;
+  $("#riseValLbl").firstChild.textContent=form.riseType.value==="percent"?"Increase (%)":"Increase (£ per payment)";
+  const amt=parseFloat(form.amount.value), v=parseFloat(form.riseValue.value);
+  const p=$("#risePreview");
+  if(form.riseOn.checked&&!isNaN(amt)&&!isNaN(v)){
+    const next=applyRise(amt,{type:form.riseType.value,value:v});
+    p.textContent=`From ${MONTHS[form.riseMonth.value]}: ${gbp.format(next)} (+${gbp.format(next-amt)})`;
+    p.hidden=false;
+  } else p.hidden=true;
+}
+form.addEventListener("input",syncForm);
+form.addEventListener("change",syncForm);
+
+function openEdit(id,group){
+  editingId=id;
+  const it=id?state.items.find(i=>i.id===id):null;
+  $("#formTitle").textContent=it?`Edit ${it.name}`:"Add a bill";
+  fillGroups(it?it.group:group);
+  form.name.value=it?it.name:"";
+  form.newGroup.value="";
+  const cur=it?currentAmount(it):null;
+  form.amount.value=cur!=null?Math.round(cur*100)/100:"";
+  form.freq.value=it?it.freq:"monthly";
+  form.from.value=it?it.from:"";
+  const nd=it?nextDueDate(it):null;
+  form.nextDue.value=nd?iso(nd):"";
+  form.term.value=it?it.term:"rolling";
+  form.endDate.value=it?it.endDate:"";
+  const r=it?it.rise:{on:false,month:3,type:"fixed",value:null};
+  form.riseOn.checked=!!r.on; form.riseMonth.value=r.month; form.riseType.value=r.type; form.riseValue.value=r.value??"";
+  form.notes.value=it?it.notes:"";
+  $("#delBtn").hidden=!it;
+  syncForm();
+  dlg.showModal();
+}
+$("#addBtn").onclick=()=>openEdit(null);
+function syncPriv(){const b=$("#privBtn");b.textContent=priv?"Show money details":"Hide money details";b.setAttribute("aria-pressed",String(priv))}
+syncPriv();
+$("#privBtn").onclick=()=>{priv=!priv;try{localStorage.setItem("bills-private",priv?"1":"0")}catch(e){}syncPriv();render()};
+$("#cancelBtn").onclick=()=>dlg.close();
+$("#delBtn").onclick=()=>{
+  const it=state.items.find(i=>i.id===editingId);
+  if(it&&confirm(`Delete ${it.name}?`)){state.items=state.items.filter(i=>i.id!==editingId);dlg.close();commit()}
+};
+form.addEventListener("submit",e=>{
+  e.preventDefault();
+  let group=form.group.value;
+  if(group==="__new"){group=form.newGroup.value.trim();if(!group){form.newGroup.focus();return}}
+  if(!state.groups.includes(group))state.groups.push(group);
+  const amt=form.amount.value===""?null:Math.round(parseFloat(form.amount.value)*100)/100;
+  const rv=form.riseValue.value===""?null:parseFloat(form.riseValue.value);
+  const data={
+    name:form.name.value.trim(), group, amount:amt, freq:form.freq.value, from:form.from.value.trim(),
+    nextDue:form.nextDue.value, term:form.term.value, endDate:form.term.value==="fixed"?form.endDate.value:"",
+    rise:{on:form.riseOn.checked,month:Number(form.riseMonth.value),type:form.riseType.value,value:rv},
+    priceDate:todayISO(), notes:form.notes.value.trim()
+  };
+  if(editingId)Object.assign(state.items.find(i=>i.id===editingId),data);
+  else state.items.push(Object.assign({id:uid()},data));
+  dlg.close(); commit();
+});
+
+/* ---------- storage ---------- */
+function setStatus(t){$("#status").textContent=t}
+function commit(){
+  render();
+  try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    if(!dbDoc){setStatus("Saved in this browser only.");return}
+    try{await dbDoc.set(JSON.parse(JSON.stringify(state)));setStatus("Saved — only you can see this data.")}
+    catch(e){setStatus("Couldn't save to your account just now ("+(e&&e.code||"error")+"). Your changes are kept in this browser.")}
+  },500);
+}
+function valid(s){return s&&Array.isArray(s.items)&&Array.isArray(s.groups)}
+
+// First paint from this browser, or the starter list.
+try{const ls=JSON.parse(localStorage.getItem(LS_KEY)||"null");if(valid(ls))state=ls}catch(e){}
+if(!state)state=starter();
+render();
+setStatus("Loading your saved tracker…");
+
+(async()=>{
+  try{
+    const db=window.claude&&await window.claude.use("db");
+    const user=window.claude&&await window.claude.use("user");
+    const id=user&&await user.id();
+    if(!db||!id){setStatus("Changes are saved in this browser only.");return}
+    dbDoc=db.doc("data/users/"+id+"/tracker");
+    const snap=await dbDoc.get();
+    if(snap.exists&&valid(snap.data())){state=JSON.parse(JSON.stringify(snap.data()));render();try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+    setStatus("Saved to your account — only you can see this data.");
+  }catch(e){setStatus("Changes are saved in this browser only.")}
+})();
+})();
+</script>
+</body>
+</html>
