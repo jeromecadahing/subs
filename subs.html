@@ -99,8 +99,8 @@ th.amt{text-align:right}
 /* Dialog */
 dialog{border:0;border-radius:16px;padding:0;width:min(560px,calc(100% - 24px));background:var(--surface);color:var(--ink);max-height:calc(100% - 24px)}
 dialog::backdrop{background:rgba(10,18,28,.55)}
-form.edit{padding:22px;display:grid;gap:14px}
-form.edit h2{margin:0;font-size:22px}
+form.elements.edit{padding:22px;display:grid;gap:14px}
+form.elements.edit h2{margin:0;font-size:22px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:480px){.row{grid-template-columns:1fr}}
 label{display:grid;gap:5px;font-size:13.5px;font-weight:500}
@@ -120,6 +120,12 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
 [hidden]{display:none!important}
 .hbtns{display:flex;gap:8px;flex-wrap:wrap}
 .masked{letter-spacing:.12em;color:var(--muted)}
+.ratebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin:-14px 0 28px}
+.ratebar input{width:110px;padding:6px 8px}
+.chip.free{background:var(--chip-ok);color:var(--ok)}
+.chip.incl{background:var(--chip-neutral);color:var(--muted)}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.hint{font-size:13px;color:var(--muted);margin:0}
 </style>
 </head>
 <body>
@@ -127,12 +133,13 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
   <header class="top">
     <div>
       <h1>Bills &amp; subscriptions</h1>
-      <p class="sub">Click any row to edit it. Payment dates roll forward on their own.</p>
+      <p class="sub">Click any row to edit it. Payment dates roll forward on their own, and free months are skipped.</p>
     </div>
     <div class="hbtns"><button class="btn ghost" id="privBtn" type="button" aria-pressed="false">Hide money details</button><button class="btn" id="addBtn" type="button">Add a bill</button></div>
   </header>
 
   <div class="glance" id="glance"></div>
+  <div class="ratebar" id="ratebar"><label for="rate" style="display:inline">Exchange rate used for the combined total: £1 =</label> ₱<input id="rate" type="number" step="0.01" min="0" inputmode="decimal" placeholder="e.g. 75"></div>
   <div id="groups"></div>
   <p class="status" id="status">Loading your tracker…</p>
 </div>
@@ -148,7 +155,19 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
       <label>New group name <small>(only if “New group…”)</small><input name="newGroup" maxlength="40"></label>
     </div>
     <div class="row">
-      <label>Amount you pay now (£)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal"></label>
+      <label>Currency
+        <select name="currency">
+          <option value="GBP">£ British pound</option>
+          <option value="PHP">₱ Philippine peso</option>
+        </select>
+      </label>
+      <label>Included in another package?
+        <select name="includedWith" id="inclSel"></select>
+      </label>
+    </div>
+    <p class="hint" id="inclHint" hidden>This won't count towards your totals because you pay for it through that package.</p>
+    <div class="row" id="amtRow">
+      <label id="amtLbl">Amount you pay now<input name="amount" type="number" step="0.01" min="0" inputmode="decimal"></label>
       <label>How often
         <select name="freq">
           <option value="weekly">Weekly</option>
@@ -158,11 +177,22 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
         </select>
       </label>
     </div>
-    <div class="row">
-      <label>Taken out from <small>e.g. Monzo, Barclaycard</small><input name="from" maxlength="40" list="accounts"></label>
+    <div class="row" id="payRow">
+      <label>Taken out from <small>e.g. Monzo, BDO, GCash</small><input name="from" maxlength="40" list="accounts"></label>
       <label>Next payment date<input name="nextDue" type="date"></label>
     </div>
     <datalist id="accounts"></datalist>
+
+    <fieldset id="freeSet">
+      <legend>Free months</legend>
+      <label>Free until <small>payments are skipped until this date</small><input name="freeUntil" type="date"></label>
+      <div class="quick">
+        <button class="btn ghost small" type="button" data-free="1">1 month free</button>
+        <button class="btn ghost small" type="button" data-free="3">3 months free</button>
+        <button class="btn ghost small" type="button" data-free="6">6 months free</button>
+        <button class="btn ghost small" type="button" data-free="0">No free months</button>
+      </div>
+    </fieldset>
 
     <fieldset>
       <legend>Contract</legend>
@@ -173,7 +203,7 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
       <label id="endWrap">Contract ends / expires<input name="endDate" type="date"></label>
     </fieldset>
 
-    <fieldset>
+    <fieldset id="riseSet">
       <legend>Yearly price rise</legend>
       <label class="toggle"><input type="checkbox" name="riseOn"> Price goes up every year</label>
       <div id="riseWrap" class="row">
@@ -182,11 +212,11 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
         </label>
         <label>Rise is
           <select name="riseType">
-            <option value="fixed">A fixed £ amount</option>
+            <option value="fixed">A fixed amount</option>
             <option value="percent">A percentage</option>
           </select>
         </label>
-        <label id="riseValLbl">Increase (£ per payment)<input name="riseValue" type="number" step="0.01" min="0" inputmode="decimal"></label>
+        <label id="riseValLbl"><span id="riseValTxt">Increase per payment</span><input name="riseValue" type="number" step="0.01" min="0" inputmode="decimal"></label>
         <div class="preview" id="risePreview" style="align-self:end"></div>
       </div>
     </fieldset>
@@ -208,25 +238,30 @@ legend{font-weight:600;padding:0 6px;font-size:14px}
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const GROUP_COLOURS=["var(--g1)","var(--g2)","var(--g3)","var(--g4)"];
 const LS_KEY="bills-tracker-v1";
-const gbp=new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"});
+const FMT={GBP:new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}),PHP:new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP"})};
+const SYM={GBP:"£",PHP:"₱"};
 const fmtDate=d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 
 function uid(){return Math.random().toString(36).slice(2,10)}
-function todayISO(){const d=new Date();return iso(d)}
 function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function todayISO(){return iso(new Date())}
 function parse(s){if(!s)return null;const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)}
 function today(){const d=new Date();d.setHours(0,0,0,0);return d}
 function daysBetween(a,b){return Math.round((b-a)/86400000)}
+function addMonths(d,n){const x=new Date(d);x.setMonth(x.getMonth()+n);return x}
 
 // Starter list — nothing is saved until you change something.
 function starter(){
-  const mk=(name,group,freq,term,extra)=>Object.assign({id:uid(),name,group,amount:null,freq,from:"",nextDue:"",term,endDate:"",rise:{on:false,month:3,type:"fixed",value:null},priceDate:"",notes:""},extra||{});
+  const mk=(name,group,freq,term,extra)=>Object.assign({id:uid(),name,group,amount:null,currency:"GBP",freq,from:"",nextDue:"",term,endDate:"",freeUntil:"",includedWith:"",rise:{on:false,month:3,type:"fixed",value:null},priceDate:"",notes:""},extra||{});
+  const sky=mk("Sky","Entertainment","monthly","fixed",{rise:{on:true,month:3,type:"fixed",value:null},notes:"Price rises every April — check your contract or Sky letter for the amount."});
   return {
     groups:["Entertainment","Software & security","Home bills"],
+    settings:{rate:null},
     items:[
-      mk("Netflix","Entertainment","monthly","rolling"),
+      sky,
+      mk("Netflix","Entertainment","monthly","rolling",{includedWith:sky.id}),
+      mk("Disney+","Entertainment","monthly","rolling",{includedWith:sky.id}),
       mk("NFL Game Pass","Entertainment","yearly","rolling"),
-      mk("Sky","Entertainment","monthly","fixed",{rise:{on:true,month:3,type:"fixed",value:null},notes:"Price rises every April — check your contract or Sky letter for the amount."}),
       mk("Norton","Software & security","yearly","rolling",{notes:"Usually auto-renews at full price after year one."}),
       mk("Adobe","Software & security","monthly","fixed",{notes:"Annual plan billed monthly has a cancellation fee before the end date."}),
       mk("Council tax","Home bills","monthly","fixed"),
@@ -235,13 +270,26 @@ function starter(){
     ]
   };
 }
+// Fill in fields added in later versions so older saved data keeps working.
+function normalize(s){
+  s.settings=s.settings||{rate:null};
+  s.items.forEach(it=>{
+    if(!it.currency)it.currency="GBP";
+    if(it.freeUntil==null)it.freeUntil="";
+    if(it.includedWith==null)it.includedWith="";
+    if(!it.rise)it.rise={on:false,month:3,type:"fixed",value:null};
+  });
+  return s;
+}
 
 let state=null;
-let priv=false; try{priv=localStorage.getItem("bills-private")==="1"}catch(e){}
-const money=n=>priv?'<span class="masked">£••••</span>':gbp.format(n);
 let dbDoc=null, saveTimer=null, editingId=null;
+let priv=false; try{priv=localStorage.getItem("bills-private")==="1"}catch(e){}
+const money=(n,cur)=>priv?`<span class="masked">${SYM[cur||"GBP"]}••••</span>`:FMT[cur||"GBP"].format(n);
 
 /* ---------- maths ---------- */
+function byId(id){return state.items.find(i=>i.id===id)}
+function parent(it){return it.includedWith?byId(it.includedWith):null}
 function monthly(amount,freq){
   if(amount==null||isNaN(amount))return 0;
   return freq==="weekly"?amount*52/12:freq==="quarterly"?amount/3:freq==="yearly"?amount/12:amount;
@@ -251,13 +299,9 @@ function applyRise(amount,rise){
   const v=Number(rise.value)||0;
   return rise.type==="percent"?amount*(1+v/100):amount+v;
 }
-// Rises take effect on the 1st of the rise month.
 function riseDatesBetween(from,to,month){
   const out=[];
-  for(let y=from.getFullYear();y<=to.getFullYear();y++){
-    const d=new Date(y,month,1);
-    if(d>from&&d<=to)out.push(d);
-  }
+  for(let y=from.getFullYear();y<=to.getFullYear();y++){const d=new Date(y,month,1);if(d>from&&d<=to)out.push(d)}
   return out;
 }
 function currentAmount(it){
@@ -275,6 +319,7 @@ function nextRise(it){
   const cur=currentAmount(it);
   return {date:d,amount:(cur==null||!it.rise.value)?null:applyRise(cur,it.rise)};
 }
+function isFree(it){const f=parse(it.freeUntil);return !!f&&today()<f}
 function stepDate(d,freq){
   const n=new Date(d);
   if(freq==="weekly")n.setDate(n.getDate()+7);
@@ -283,12 +328,32 @@ function stepDate(d,freq){
   else n.setFullYear(n.getFullYear()+1);
   return n;
 }
+// Next payment you actually pay: rolls past dates already gone and any free months.
 function nextDueDate(it){
   const d0=parse(it.nextDue); if(!d0)return null;
-  let d=d0, t=today(), guard=0;
-  while(d<t&&guard++<600)d=stepDate(d,it.freq);
+  let floor=today(); const f=parse(it.freeUntil); if(f&&f>floor)floor=f;
+  let d=d0,guard=0;
+  while(d<floor&&guard++<600)d=stepDate(d,it.freq);
   return d;
 }
+// Monthly cost counted in totals right now.
+function countedMonthly(it){
+  if(it.includedWith||isFree(it))return 0;
+  return monthly(currentAmount(it),it.freq);
+}
+function totals(list){
+  const t={GBP:0,PHP:0};
+  list.forEach(it=>{t[it.currency||"GBP"]+=countedMonthly(it)});
+  return t;
+}
+function totalText(t,mult){
+  mult=mult||1;
+  const parts=[];
+  if(t.GBP||!t.PHP)parts.push(money(t.GBP*mult,"GBP"));
+  if(t.PHP)parts.push(money(t.PHP*mult,"PHP"));
+  return parts.join(" + ");
+}
+function combinedGBP(t){const r=Number(state.settings.rate);return r>0?t.GBP+t.PHP/r:null}
 
 /* ---------- render ---------- */
 const $=s=>document.querySelector(s);
@@ -299,8 +364,7 @@ function dueChip(d){
   if(!d)return '<span class="empty-val">Add a date</span>';
   const n=daysBetween(today(),d);
   const txt=n===0?"Today":n===1?"Tomorrow":n<=14?`In ${n} days`:fmtDate(d);
-  const cls=n<=3?"warn":"";
-  return `<span class="num">${n<=14?fmtDate(d)+"<br>":""}</span><span class="chip ${cls}">${txt}</span>`;
+  return `<span class="num">${n<=14?fmtDate(d)+"<br>":""}</span><span class="chip ${n<=3?"warn":""}">${txt}</span>`;
 }
 function termChip(it){
   if(it.term!=="fixed")return '<span class="chip ok">Rolling</span>';
@@ -308,52 +372,76 @@ function termChip(it){
   if(!e)return '<span class="chip">Fixed term</span><div class="meta">Add an end date</div>';
   const n=daysBetween(today(),e);
   if(n<0)return `<span class="chip bad">Ended ${fmtDate(e)}</span><div class="meta">Out of contract — worth shopping around</div>`;
-  const cls=n<=60?"warn":"";
   const left=n<=60?`${n} day${n===1?"":"s"} left`:`Ends ${fmtDate(e)}`;
-  return `<span class="chip ${cls}">${left}</span>${n<=60?`<div class="meta">Ends ${fmtDate(e)}</div>`:""}`;
+  return `<span class="chip ${n<=60?"warn":""}">${left}</span>${n<=60?`<div class="meta">Ends ${fmtDate(e)}</div>`:""}`;
 }
 
 function render(){
   const items=state.items;
-  // glance
-  let mTotal=0, missing=0, soonest=null, ending=[];
+  const t=totals(items);
+  let missing=0, soonest=null, ending=[], freeCount=0;
   items.forEach(it=>{
-    const a=currentAmount(it);
-    if(a==null)missing++; else mTotal+=monthly(a,it.freq);
+    if(it.includedWith)return;
+    if(isFree(it))freeCount++;
+    if(currentAmount(it)==null)missing++;
     const d=nextDueDate(it);
     if(d&&(!soonest||d<soonest.d))soonest={d,it};
     if(it.term==="fixed"&&it.endDate){const n=daysBetween(today(),parse(it.endDate));if(n>=0&&n<=60)ending.push(it)}
   });
-  const nextTxt=soonest?`${esc(soonest.it.name)}<div class="note">${fmtDate(soonest.d)}${currentAmount(soonest.it)!=null?" — "+money(currentAmount(soonest.it)):""}</div>`:`<span class="empty-val">No dates yet</span>`;
+  const comb=combinedGBP(t), both=t.GBP&&t.PHP;
+  const bigTxt=both&&comb!=null?money(comb,"GBP"):totalText(t);
+  const notes=[];
+  if(both&&comb!=null)notes.push(`${totalText(t)} combined`);
+  if(both&&comb==null)notes.push("Add an exchange rate below for one combined total");
+  notes.push(`${both&&comb!=null?money(comb*12,"GBP"):totalText(t,12)} a year`);
+  if(freeCount)notes.push(`${freeCount} on free months`);
+  if(missing)notes.push(`${missing} without an amount yet`);
+  const sa=soonest?currentAmount(soonest.it):null;
+  const nextTxt=soonest?`${esc(soonest.it.name)}<div class="note">${fmtDate(soonest.d)}${sa!=null?" — "+money(sa,soonest.it.currency):""}</div>`:`<span class="empty-val">No dates yet</span>`;
   $("#glance").innerHTML=`
-    <div><div class="lbl">Going out each month</div><div class="big num">${money(mTotal)}</div>
-      <div class="note num">${money(mTotal*12)} a year${missing?` · ${missing} without an amount yet`:""}</div></div>
+    <div><div class="lbl">Going out each month</div><div class="big num">${bigTxt}</div>
+      <div class="note num">${notes.join(" · ")}</div></div>
     <div><div class="lbl">Next payment</div><div class="mid">${nextTxt}</div></div>
     <div><div class="lbl">Ending in the next 60 days</div><div class="mid">${ending.length?ending.map(i=>esc(i.name)).join(", "):"Nothing"}</div>
       <div class="note">${ending.length?"Decide whether to renew or switch":"All contracts are clear"}</div></div>`;
+  $("#ratebar").hidden=!items.some(i=>i.currency==="PHP");
+  if(document.activeElement!==$("#rate"))$("#rate").value=state.settings.rate??"";
 
-  // groups
   const groups=[...state.groups];
   items.forEach(it=>{if(!groups.includes(it.group))groups.push(it.group)});
   $("#groups").innerHTML=groups.map((g,gi)=>{
     const rows=items.filter(i=>i.group===g).sort((a,b)=>{
+      if(!!a.includedWith!==!!b.includedWith)return a.includedWith?1:-1;
       const da=nextDueDate(a),db=nextDueDate(b);
       if(!da&&!db)return a.name.localeCompare(b.name); if(!da)return 1; if(!db)return -1; return da-db;
     });
-    const sub=rows.reduce((s,i)=>s+monthly(currentAmount(i),i.freq),0);
     const body=rows.map(it=>{
-      const a=currentAmount(it), nr=nextRise(it);
-      const riseLine=nr?`<span class="rise">${nr.amount!=null?`Goes up to ${money(nr.amount)} on ${fmtDate(nr.date)}`:`Rises every ${MONTHS[it.rise.month]} — add the increase`}</span>`:"";
+      const p=parent(it);
+      if(it.includedWith){
+        return `<tr class="item" tabindex="0" data-id="${it.id}">
+          <td class="c-name"><div class="name">${esc(it.name)}</div>${it.notes?`<div class="meta">${esc(it.notes)}</div>`:""}</td>
+          <td class="amt"><span class="chip incl">Included</span><div class="meta">with ${esc(p?p.name:"another package")}</div></td>
+          <td data-l="From"><span class="meta">Paid via ${esc(p?p.name:"package")}</span></td>
+          <td data-l="Next payment"><span class="meta">Paid via ${esc(p?p.name:"package")}</span></td>
+          <td data-l="Contract">${p?`<span class="meta">Follows ${esc(p.name)}</span>`:termChip(it)}</td>
+        </tr>`;
+      }
+      const a=currentAmount(it), nr=nextRise(it), free=isFree(it), cur=it.currency;
+      const riseLine=nr?`<span class="rise">${nr.amount!=null?`Goes up to ${money(nr.amount,cur)} on ${fmtDate(nr.date)}`:`Rises every ${MONTHS[it.rise.month]} — add the increase`}</span>`:"";
+      const kids=items.filter(i=>i.includedWith===it.id).map(i=>esc(i.name));
+      const amtCell=free
+        ?`<span class="chip free">Free</span><div class="meta">until ${fmtDate(parse(it.freeUntil))}</div>${a!=null?`<div class="meta">then ${money(a,cur)} ${FREQ[it.freq]}</div>`:""}`
+        :(a!=null?`<b>${money(a,cur)}</b><div class="meta">${FREQ[it.freq]}</div>`:'<span class="empty-val">Add amount</span>');
       return `<tr class="item" tabindex="0" data-id="${it.id}">
-        <td class="c-name"><div class="name">${esc(it.name)}</div>${it.notes?`<div class="meta">${esc(it.notes)}</div>`:""}</td>
-        <td class="amt num">${a!=null?`<b>${money(a)}</b><div class="meta">${FREQ[it.freq]}</div>`:'<span class="empty-val">Add amount</span>'}${riseLine}</td>
+        <td class="c-name"><div class="name">${esc(it.name)}</div>${kids.length?`<div class="meta">Includes ${kids.join(", ")}</div>`:""}${it.notes?`<div class="meta">${esc(it.notes)}</div>`:""}</td>
+        <td class="amt num">${amtCell}${riseLine}</td>
         <td data-l="From">${it.from?(priv?'<span class="masked">••••</span>':esc(it.from)):'<span class="empty-val">—</span>'}</td>
-        <td data-l="Next payment">${dueChip(nextDueDate(it))}</td>
+        <td data-l="Next payment">${dueChip(nextDueDate(it))}${free&&it.nextDue?'<div class="meta">First paid payment</div>':""}</td>
         <td data-l="Contract">${termChip(it)}</td>
       </tr>`;
     }).join("");
     return `<section class="group" style="--gc:${GROUP_COLOURS[gi%GROUP_COLOURS.length]}">
-      <div class="ghead"><h2>${esc(g)}</h2><div class="tot num"><b>${money(sub)}</b> a month</div></div>
+      <div class="ghead"><h2>${esc(g)}</h2><div class="tot num"><b>${totalText(totals(rows))}</b> a month</div></div>
       <div class="table"><table>
         <thead><tr><th>Name</th><th class="amt">Amount</th><th>Taken from</th><th>Next payment</th><th>Contract / expiry</th></tr></thead>
         <tbody>${body||`<tr><td colspan="5" class="meta">Nothing in this group yet.</td></tr>`}</tbody>
@@ -369,78 +457,100 @@ function render(){
   document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>openEdit(null,b.dataset.add));
 }
 
+$("#rate").addEventListener("change",e=>{
+  const v=parseFloat(e.target.value);
+  state.settings.rate=isNaN(v)||v<=0?null:v; commit();
+});
+
 /* ---------- edit form ---------- */
 const form=$("#form"), dlg=$("#dlg");
-form.riseMonth.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join("");
+form.elements.riseMonth.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join("");
 
-function fillGroups(sel){
+function fillSelects(it,group){
   const groups=[...new Set([...state.groups,...state.items.map(i=>i.group)])];
   $("#groupSel").innerHTML=groups.map(g=>`<option>${esc(g)}</option>`).join("")+`<option value="__new">New group…</option>`;
-  $("#groupSel").value=sel||groups[0];
+  $("#groupSel").value=(it?it.group:group)||groups[0];
+  const parents=state.items.filter(i=>!i.includedWith&&(!it||i.id!==it.id));
+  $("#inclSel").innerHTML=`<option value="">No — I pay for it separately</option>`+parents.map(p=>`<option value="${p.id}">Yes — included with ${esc(p.name)}</option>`).join("");
+  $("#inclSel").value=it&&it.includedWith?it.includedWith:"";
   $("#accounts").innerHTML=[...new Set(state.items.map(i=>i.from).filter(Boolean))].map(a=>`<option value="${esc(a)}">`).join("");
 }
 function syncForm(){
-  const fixed=form.term.value==="fixed";
-  $("#endWrap").hidden=!fixed;
-  $("#riseWrap").hidden=!form.riseOn.checked;
-  $("#riseValLbl").firstChild.textContent=form.riseType.value==="percent"?"Increase (%)":"Increase (£ per payment)";
-  const amt=parseFloat(form.amount.value), v=parseFloat(form.riseValue.value);
-  const p=$("#risePreview");
-  if(form.riseOn.checked&&!isNaN(amt)&&!isNaN(v)){
-    const next=applyRise(amt,{type:form.riseType.value,value:v});
-    p.textContent=`From ${MONTHS[form.riseMonth.value]}: ${gbp.format(next)} (+${gbp.format(next-amt)})`;
-    p.hidden=false;
+  const incl=!!form.elements.includedWith.value, sym=SYM[form.elements.currency.value];
+  $("#inclHint").hidden=!incl;
+  ["#amtRow","#payRow","#freeSet","#riseSet"].forEach(s=>$(s).hidden=incl);
+  $("#amtLbl").firstChild.textContent=`Amount you pay now (${sym})`;
+  $("#endWrap").hidden=form.elements.term.value!=="fixed";
+  $("#riseWrap").hidden=!form.elements.riseOn.checked;
+  $("#riseValTxt").textContent=form.elements.riseType.value==="percent"?"Increase (%)":`Increase (${sym} per payment)`;
+  const amt=parseFloat(form.elements.amount.value), v=parseFloat(form.elements.riseValue.value), p=$("#risePreview");
+  if(form.elements.riseOn.checked&&!isNaN(amt)&&!isNaN(v)){
+    const next=applyRise(amt,{type:form.elements.riseType.value,value:v}), f=FMT[form.elements.currency.value];
+    p.textContent=`From ${MONTHS[form.elements.riseMonth.value]}: ${f.format(next)} (+${f.format(next-amt)})`; p.hidden=false;
   } else p.hidden=true;
 }
 form.addEventListener("input",syncForm);
 form.addEventListener("change",syncForm);
+document.querySelectorAll("[data-free]").forEach(b=>b.onclick=()=>{
+  const n=Number(b.dataset.free);
+  form.elements.freeUntil.value=n?iso(addMonths(today(),n)):"";
+});
 
 function openEdit(id,group){
   editingId=id;
-  const it=id?state.items.find(i=>i.id===id):null;
+  const it=id?byId(id):null;
   $("#formTitle").textContent=it?`Edit ${it.name}`:"Add a bill";
-  fillGroups(it?it.group:group);
-  form.name.value=it?it.name:"";
-  form.newGroup.value="";
+  fillSelects(it,group);
+  form.elements.name.value=it?it.name:"";
+  form.elements.newGroup.value="";
+  form.elements.currency.value=it?it.currency:"GBP";
   const cur=it?currentAmount(it):null;
-  form.amount.value=cur!=null?Math.round(cur*100)/100:"";
-  form.freq.value=it?it.freq:"monthly";
-  form.from.value=it?it.from:"";
+  form.elements.amount.value=cur!=null?Math.round(cur*100)/100:"";
+  form.elements.freq.value=it?it.freq:"monthly";
+  form.elements.from.value=it?it.from:"";
   const nd=it?nextDueDate(it):null;
-  form.nextDue.value=nd?iso(nd):"";
-  form.term.value=it?it.term:"rolling";
-  form.endDate.value=it?it.endDate:"";
+  form.elements.nextDue.value=nd?iso(nd):"";
+  form.elements.freeUntil.value=it&&isFree(it)?it.freeUntil:"";
+  form.elements.term.value=it?it.term:"rolling";
+  form.elements.endDate.value=it?it.endDate:"";
   const r=it?it.rise:{on:false,month:3,type:"fixed",value:null};
-  form.riseOn.checked=!!r.on; form.riseMonth.value=r.month; form.riseType.value=r.type; form.riseValue.value=r.value??"";
-  form.notes.value=it?it.notes:"";
+  form.elements.riseOn.checked=!!r.on; form.elements.riseMonth.value=r.month; form.elements.riseType.value=r.type; form.elements.riseValue.value=r.value??"";
+  form.elements.notes.value=it?it.notes:"";
   $("#delBtn").hidden=!it;
   syncForm();
   dlg.showModal();
 }
 $("#addBtn").onclick=()=>openEdit(null);
+$("#cancelBtn").onclick=()=>dlg.close();
 function syncPriv(){const b=$("#privBtn");b.textContent=priv?"Show money details":"Hide money details";b.setAttribute("aria-pressed",String(priv))}
 syncPriv();
 $("#privBtn").onclick=()=>{priv=!priv;try{localStorage.setItem("bills-private",priv?"1":"0")}catch(e){}syncPriv();render()};
-$("#cancelBtn").onclick=()=>dlg.close();
 $("#delBtn").onclick=()=>{
-  const it=state.items.find(i=>i.id===editingId);
-  if(it&&confirm(`Delete ${it.name}?`)){state.items=state.items.filter(i=>i.id!==editingId);dlg.close();commit()}
+  const it=byId(editingId);
+  if(it&&confirm(`Delete ${it.name}?`)){
+    state.items=state.items.filter(i=>i.id!==editingId);
+    state.items.forEach(i=>{if(i.includedWith===editingId)i.includedWith=""});
+    dlg.close();commit();
+  }
 };
 form.addEventListener("submit",e=>{
   e.preventDefault();
-  let group=form.group.value;
-  if(group==="__new"){group=form.newGroup.value.trim();if(!group){form.newGroup.focus();return}}
+  let group=form.elements.group.value;
+  if(group==="__new"){group=form.elements.newGroup.value.trim();if(!group){form.elements.newGroup.focus();return}}
   if(!state.groups.includes(group))state.groups.push(group);
-  const amt=form.amount.value===""?null:Math.round(parseFloat(form.amount.value)*100)/100;
-  const rv=form.riseValue.value===""?null:parseFloat(form.riseValue.value);
+  const amt=form.elements.amount.value===""?null:Math.round(parseFloat(form.elements.amount.value)*100)/100;
+  const rv=form.elements.riseValue.value===""?null:parseFloat(form.elements.riseValue.value);
   const data={
-    name:form.name.value.trim(), group, amount:amt, freq:form.freq.value, from:form.from.value.trim(),
-    nextDue:form.nextDue.value, term:form.term.value, endDate:form.term.value==="fixed"?form.endDate.value:"",
-    rise:{on:form.riseOn.checked,month:Number(form.riseMonth.value),type:form.riseType.value,value:rv},
-    priceDate:todayISO(), notes:form.notes.value.trim()
+    name:form.elements.name.value.trim(), group, currency:form.elements.currency.value, includedWith:form.elements.includedWith.value,
+    amount:amt, freq:form.elements.freq.value, from:form.elements.from.value.trim(), nextDue:form.elements.nextDue.value, freeUntil:form.elements.freeUntil.value,
+    term:form.elements.term.value, endDate:form.elements.term.value==="fixed"?form.elements.endDate.value:"",
+    rise:{on:form.elements.riseOn.checked,month:Number(form.elements.riseMonth.value),type:form.elements.riseType.value,value:rv},
+    priceDate:todayISO(), notes:form.elements.notes.value.trim()
   };
-  if(editingId)Object.assign(state.items.find(i=>i.id===editingId),data);
-  else state.items.push(Object.assign({id:uid()},data));
+  if(editingId){
+    Object.assign(byId(editingId),data);
+    if(data.includedWith)state.items.forEach(i=>{if(i.includedWith===editingId)i.includedWith=""});
+  } else state.items.push(Object.assign({id:uid()},data));
   dlg.close(); commit();
 });
 
@@ -458,21 +568,20 @@ function commit(){
 }
 function valid(s){return s&&Array.isArray(s.items)&&Array.isArray(s.groups)}
 
-// First paint from this browser, or the starter list.
-try{const ls=JSON.parse(localStorage.getItem(LS_KEY)||"null");if(valid(ls))state=ls}catch(e){}
+try{const ls=JSON.parse(localStorage.getItem(LS_KEY)||"null");if(valid(ls))state=normalize(ls)}catch(e){}
 if(!state)state=starter();
 render();
 setStatus("Loading your saved tracker…");
 
 (async()=>{
   try{
-    const db=window.claude&&await window.claude.use("db");
-    const user=window.claude&&await window.claude.use("user");
+    const db=window.claude&&typeof window.claude.use==="function"&&await window.claude.use("db");
+    const user=db&&await window.claude.use("user");
     const id=user&&await user.id();
     if(!db||!id){setStatus("Changes are saved in this browser only.");return}
     dbDoc=db.doc("data/users/"+id+"/tracker");
     const snap=await dbDoc.get();
-    if(snap.exists&&valid(snap.data())){state=JSON.parse(JSON.stringify(snap.data()));render();try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+    if(snap.exists&&valid(snap.data())){state=normalize(JSON.parse(JSON.stringify(snap.data())));render();try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
     setStatus("Saved to your account — only you can see this data.");
   }catch(e){setStatus("Changes are saved in this browser only.")}
 })();
