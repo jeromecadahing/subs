@@ -69,6 +69,15 @@ section.group{margin-bottom:30px}
 .ghead h2::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--gc,var(--ink))}
 .ghead .tot{color:var(--muted);font-size:14px}
 .ghead .tot b{color:var(--ink);font-weight:600}
+.gtoggle{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;border-radius:6px}
+.gtoggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.gcount{font-size:13px;font-weight:600;letter-spacing:0;color:var(--muted);background:var(--chip-neutral);border-radius:999px;padding:1px 8px}
+.chev{width:14px;height:14px;color:var(--muted);transition:transform .15s}
+.gtoggle:hover .chev{color:var(--ink)}
+section.group.closed .chev{transform:rotate(-90deg)}
+section.group.closed .table,section.group.closed .addrow{display:none}
+section.group.closed{margin-bottom:16px}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
 
 .table{width:100%;overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:760px}
@@ -293,6 +302,7 @@ function normalize(s){
 
 let state=null;
 let dbDoc=null, saveTimer=null, editingId=null;
+let closed=[]; try{closed=JSON.parse(localStorage.getItem("bills-collapsed")||"[]");if(!Array.isArray(closed))closed=[]}catch(e){closed=[]}
 let priv=false; try{priv=localStorage.getItem("bills-private")==="1"}catch(e){}
 const money=(n,cur)=>priv?`<span class="masked">${SYM[cur||"GBP"]}••••</span>`:FMT[cur||"GBP"].format(n);
 
@@ -449,8 +459,9 @@ function render(){
         <td data-l="Contract">${termChip(it)}</td>
       </tr>`;
     }).join("");
-    return `<section class="group" style="--gc:${GROUP_COLOURS[gi%GROUP_COLOURS.length]}">
-      <div class="ghead"><h2>${esc(g)}</h2><div class="tot num"><b>${totalText(totals(rows))}</b> a month</div></div>
+    const isClosed=closed.includes(g);
+    return `<section class="group${isClosed?" closed":""}" style="--gc:${GROUP_COLOURS[gi%GROUP_COLOURS.length]}">
+      <div class="ghead"><h2><button class="gtoggle" type="button" data-toggle="${esc(g)}" aria-expanded="${!isClosed}">${esc(g)}<span class="gcount">${rows.length}</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></h2><div class="tot num"><b>${totalText(totals(rows))}</b> a month</div></div>
       <div class="table"><table>
         <thead><tr><th>Name</th><th class="amt">Amount</th><th>Taken from</th><th>Next payment</th><th>Contract / expiry</th></tr></thead>
         <tbody>${body||`<tr><td colspan="5" class="meta">Nothing in this group yet.</td></tr>`}</tbody>
@@ -464,6 +475,14 @@ function render(){
     tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openEdit(tr.dataset.id)}};
   });
   document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>openEdit(null,b.dataset.add));
+  document.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=()=>{
+    const g=b.dataset.toggle, sec=b.closest("section.group");
+    const nowClosed=!sec.classList.contains("closed");
+    sec.classList.toggle("closed",nowClosed);
+    b.setAttribute("aria-expanded",String(!nowClosed));
+    closed=nowClosed?[...new Set([...closed,g])]:closed.filter(x=>x!==g);
+    try{localStorage.setItem("bills-collapsed",JSON.stringify(closed))}catch(e){}
+  });
 }
 
 $("#rate").addEventListener("change",e=>{
